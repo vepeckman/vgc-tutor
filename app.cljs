@@ -1,3 +1,4 @@
+#!/usr/bin/env lumo
 (ns vgc-tutor.app
   (:require [clojure.string :as string]
             [cljs.nodejs :as nodejs]))
@@ -8,6 +9,19 @@
 (def abilities (get (js->clj (nodejs/require "./abilities")) "BattleAbilities"))
 (def fs (nodejs/require "fs"))
 (def legal-mons (string/split (. fs readFileSync "legal-mons.txt" "utf8") #"\r\n"))
+
+(defn find-flags
+  []
+  (let [argv (aget nodejs/process "argv")]
+    (for [x (range (count argv))
+          :let [arg (aget argv x)
+                n   (aget argv (inc x))]
+          :when (string/starts-with? arg "--")]
+      [(keyword (string/replace arg "-" "")) n])))
+
+(defn aggregate-flags
+  []
+  (reduce #(assoc %1 (first %2) (last %2)) {} (find-flags)))
 
 (defn find-poke-info
   [poke]
@@ -23,7 +37,7 @@
 
 (defn find-ability-info
   [ability]
-  (first (filter #(= (get (last %) "name") ability) abilities)))
+  (select-keys (last (first (filter #(= (get (last %) "name") ability) abilities))) ["shortDesc"]))
 
 (defn rand-mon
   []
@@ -37,21 +51,23 @@
   [info-map poke-id]
   (assoc info-map "learnset" (find-learnset poke-id)))
 
-(defn random-evo-info
-  []
-  (let [pokes (find-poke-info (rand-mon))
+(defn full-info
+  [mon]
+  (let [pokes (find-poke-info mon)
         poke-ids (map first pokes)
         poke-infos (map last pokes)]
-    (if (final-evo? (first poke-infos))
       (for [x (range (count pokes))
             :let [poke-id (nth poke-ids x)
                   poke-info (nth poke-infos x)]]
-        (add-learnset (select-keys poke-info ["species" "baseStats" "abilities" "types"]) poke-id))
-      (random-evo-info))))
+        (add-learnset (select-keys poke-info ["species" "baseStats" "abilities" "types"]) poke-id))))
+
+(defn random-evo-info
+  []
+  (full-info (rand-mon)))
 
 (defn print-move
   [move-info]
-  (println (str "  Name: " (get move-info "name")))
+  (println (str "Name: " (get move-info "name")))
   (println (str "  Type: " (get move-info "type")))
   (println (str "  Base Power: " (get move-info "basePower"))))
 
@@ -62,5 +78,18 @@
   (println (str "Stats: " (get info-map "baseStats")))
   (println (str "Abilities: " (get info-map "abilities"))))
 
-(doseq [info-map (random-evo-info)]
-  (print-poke-info info-map))
+(defn flag-command
+  [flag option]
+  (cond
+    (and (= :random flag) option) (doseq [info-map (random-evo-info)]
+                                     (print-poke-info info-map))
+    (and (= :move flag) option) (print-move (find-move-info option))
+    (and (= :learnset flag) option) (doseq [move (find-learnset option)]
+                                      (print-move move))
+    (and (= :ability flag) option) (println (find-ability-info option))
+    (and (= :dex flag) option) (doseq [info-map (full-info option)]
+                                 (print-poke-info info-map))))
+
+(let [flags (aggregate-flags)]
+  (doseq [flag (keys flags)]
+    (flag-command flag (flag flags))))
