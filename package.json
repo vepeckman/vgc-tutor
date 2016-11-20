@@ -1,0 +1,18 @@
+{
+  "name": "vgc-tutor",
+  "version": "0.0.1",
+  "description": "Learn about the legal Pokemon for VGC 2017",
+  "main": "app.cljs",
+  "scripts": {
+    "test": "lumo app.cljs"
+  },
+  "keywords": [
+    "Pokemon",
+    "VGC",
+    "Lumo",
+    "Clojure",
+    "ClojureScript"
+  ],
+  "author": "Nicolas Peckman",
+  "license": "MIT"
+}
